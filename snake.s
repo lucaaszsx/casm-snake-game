@@ -4,6 +4,7 @@
 .equ DIR_LEFT 1
 .equ DIR_TOP 2
 .equ DIR_BOTTOM 3
+.equ DIR_LEN 3
 
 .equ SC_ROWS 32
 .equ SC_COLS 64
@@ -25,7 +26,7 @@ start:
     jsr draw_pixel
 
     ; sets the initial direction
-    rand v2, DIR_BOTTOM
+    rand v2, DIR_LEN
     jsr snake_set_dir
 
     jsr loop
@@ -79,6 +80,8 @@ snake_move_head:
     jsr snake_get_head_pos
     jsr snake_get_dir
 
+    mov v8, 1
+
     skeq v2, DIR_RIGHT
     jsr dir_right
     skeq v2, DIR_LEFT
@@ -94,7 +97,7 @@ snake_move_head:
     rts
 
 dir_right:
-    sub v0, 1
+    sub v0, v8
     rts
 
 dir_left:
@@ -102,7 +105,7 @@ dir_left:
     rts
 
 dir_top:
-    sub v1, 1
+    sub v1, v8
     rts
 
 dir_bottom:
