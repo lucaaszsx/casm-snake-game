@@ -6,12 +6,15 @@
 .equ DIR_BOTTOM 3
 .equ DIR_LEN 3
 
-.equ SC_ROWS 32
-.equ SC_COLS 64
+.equ S_ROWS_MASK 31
+.equ S_COLS_MASK 63
 
 ; REGISTERS:
-; v0 and v1: X and Y positions
-; va: used to store delay in "wait"
+; v0..v1: used to load/store bytes from memory;
+;         v0 can be used to return data from subroutines
+; v2..v3: used for X and Y positions
+; v8..v9: temp registers
+; va: used to define delay for "wait"
 
 ; entrypoint
 start:
@@ -21,12 +24,17 @@ start:
     str v1
     jsr draw_pixel
 
+    ; create snake tail
+    jsr snake_get_head_pos
+    mvi snake_tail
+    
+
     ; spawn first fruit
-    jsr fruit_spawn
+    jsr spawn_fruit
     jsr draw_pixel
 
     ; sets the initial direction
-    rand v2, DIR_LEN
+    rand v0, DIR_LEN
     jsr snake_set_dir
 
     jsr loop
@@ -38,8 +46,10 @@ end:
 loop:
     cls
 
-    jsr snake_move_head
+    jsr get_fruit_pos
+    jsr draw_pixel
 
+    jsr snake_move_head
     jsr draw_pixel
 
     mov va, 60
@@ -62,15 +72,15 @@ snake_pop:
 snake_check_collision:
     jsr snake_get_head_pos
 
-    ; stores snake head position (x = v8, y = v9)
-    mov v8, v0
-    mov v9, v1
+    ; stores snake head position (x = v2, y = v3)
+    mov v2, v0
+    mov v3, v1
 
-    jsr fruit_get_pos
+    jsr get_fruit_pos ; (x = v0, y = v1)
 
-    skne v8, v0
+    skne v2, v0
     jsr ret_no
-    skne v9, v1
+    skne v3, v1
     jsr ret_no
 
     mov v0, 1
@@ -78,38 +88,47 @@ snake_check_collision:
 
 snake_move_head:
     jsr snake_get_head_pos
+    mov v2, v0
+    mov v3, v1
+
+    ; moves the snake head
+    mov v8, 1 ; used for sub instructions in dir_right, dir_bottom
     jsr snake_get_dir
 
-    mov v8, 1
-
-    skeq v2, DIR_RIGHT
+    skeq v0, DIR_RIGHT
     jsr dir_right
-    skeq v2, DIR_LEFT
+    skeq v0, DIR_LEFT
     jsr dir_left
-    skeq v2, DIR_TOP
+    skeq v0, DIR_TOP
     jsr dir_top
-    skeq v2, DIR_BOTTOM
+    skeq v0, DIR_BOTTOM
     jsr dir_bottom
 
     mvi snake_head
+    mov v0, v2
+    mov v1, v3
     str v1
 
     rts
 
+snake_shrink_tail:
+    
+    rts
+
 dir_right:
-    sub v0, v8
+    sub v2, v8
     rts
 
 dir_left:
-    add v0, 1
+    add v2, 1
     rts
 
 dir_top:
-    sub v1, v8
+    add v3, 1
     rts
 
 dir_bottom:
-    add v1, 1
+    sub v3, v8
     rts
 
 snake_get_head_pos:
@@ -117,38 +136,31 @@ snake_get_head_pos:
     ldr v1
     rts
 
-;; sets snake direction from v2
-snake_set_dir:
-    mov v8, v0 ; stores v0 into v8
-    mov v0, v2
-
-    mvi snake_dir
-    str v0
-
-    mov v0, v8 ; restores v0 from v8
-
+snake_get_tail_pos:
+    mvi snake_tail
+    ldr v1
     rts
 
-;; gets snake direction and stores into v2
-snake_get_dir:
-    mov v8, v0
+;; sets snake direction to v0
+snake_set_dir:
+    mvi snake_dir
+    str v0
+    rts
 
+;; gets snake direction and stores into v0
+snake_get_dir:
     mvi snake_dir
     ldr v0
-    mov v2, v0
-
-    mov v0, v8
-
     rts
 
 ; fruits
-fruit_spawn:
+spawn_fruit:
     jsr random_pos
     mvi fruit_pos
     str v1
     rts
 
-fruit_get_pos:
+get_fruit_pos:
     mvi fruit_pos
     ldr v1
     rts
@@ -166,10 +178,9 @@ wait:
     jmp wait
     rts
 
-;; return (x, y) -> (v0, v1)
 random_pos:
-    rand v0, SC_COLS
-    rand v1, SC_ROWS
+    rand v0, S_COLS_MASK
+    rand v1, S_ROWS_MASK
     rts
 
 ret_no:
@@ -195,6 +206,9 @@ snake_body:
     .db 0,0,0,0,0,0,0,0
     .db 0,0,0,0,0,0,0,0
     .db 0,0,0,0,0,0,0,0
+
+snake_tail:
+    .db 0, 0
 
 snake_size:
     .db 0
